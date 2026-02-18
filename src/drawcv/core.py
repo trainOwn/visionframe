@@ -932,18 +932,19 @@ def list_visionframe_styles() -> list[str]:
     return [name for name, _ in STYLES]
 
 
-def create_visionframe_gallery(tile_w: int = 300, tile_h: int = 180, cols: int = 4) -> np.ndarray:
+def create_visionframe_gallery(tile_w: int = 240, tile_h: int = 150, cols: int = 4) -> np.ndarray:
     rows = math.ceil(len(STYLES) / cols)
-    canvas = np.full((rows * tile_h, cols * tile_w, 3), 28, dtype=np.uint8)
+    canvas = np.full((rows * tile_h, cols * tile_w, 3), 255, dtype=np.uint8)
     for i, (name, style_fn) in enumerate(STYLES):
         r = i // cols
         c = i % cols
         x0 = c * tile_w
         y0 = r * tile_h
-        cv2.rectangle(canvas, (x0 + 8, y0 + 8), (x0 + tile_w - 8, y0 + tile_h - 8), (45, 45, 45), -1)
-        rect = (x0 + 40, y0 + 50, x0 + tile_w - 40, y0 + tile_h - 30)
+        cv2.rectangle(canvas, (x0 + 8, y0 + 8), (x0 + tile_w - 8, y0 + tile_h - 8), (245, 245, 245), -1)
+        cv2.rectangle(canvas, (x0 + 8, y0 + 8), (x0 + tile_w - 8, y0 + tile_h - 8), (220, 220, 220), 1)
+        rect = (x0 + 30, y0 + 42, x0 + tile_w - 30, y0 + tile_h - 24)
         style_fn(canvas, rect)
-        cv2.putText(canvas, name, (x0 + 16, y0 + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.65, (220, 220, 220), 1, cv2.LINE_AA)
+        cv2.putText(canvas, name, (x0 + 14, y0 + 28), cv2.FONT_HERSHEY_SIMPLEX, 0.52, (40, 40, 40), 1, cv2.LINE_AA)
     return canvas
 
 
