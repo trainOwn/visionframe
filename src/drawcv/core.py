@@ -97,6 +97,94 @@ def blend_fill(img: np.ndarray, rect: Rect, color: tuple[int, int, int], alpha: 
     cv2.addWeighted(overlay, alpha, img, 1 - alpha, 0, dst=img)
 
 
+def _auto_text_scale(
+    text: str,
+    max_w: int,
+    max_h: int,
+    font: int = cv2.FONT_HERSHEY_SIMPLEX,
+    thickness: int = 1,
+    min_scale: float = 0.35,
+    max_scale: float = 1.1,
+) -> float:
+    if max_w <= 0 or max_h <= 0:
+        return min_scale
+    (base_w, base_h), _ = cv2.getTextSize(text, font, 1.0, thickness)
+    if base_w <= 0 or base_h <= 0:
+        return min_scale
+    fit = min(max_w / float(base_w), max_h / float(base_h))
+    return max(min_scale, min(max_scale, fit))
+
+
+def _draw_label_box(
+    img: np.ndarray,
+    rect: Rect,
+    text: str | None,
+    text_position: str,
+    text_color: tuple[int, int, int],
+) -> None:
+    if text is None:
+        return
+    label = text.strip()
+    if not label:
+        return
+
+    valid_positions = {"top-left", "top-right", "bottom-left", "bottom-right"}
+    if text_position not in valid_positions:
+        raise ValueError(f"text_position must be one of: {', '.join(sorted(valid_positions))}")
+
+    x1, y1, x2, y2 = rect
+    rw = max(1, x2 - x1 + 1)
+    rh = max(1, y2 - y1 + 1)
+
+    # Keep the label proportional to the detection box size.
+    max_text_w = max(20, int(rw * 0.72))
+    max_text_h = max(12, int(rh * 0.22))
+    scale = _auto_text_scale(label, max_text_w, max_text_h)
+    (tw, th), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, scale, 1)
+
+    pad_x = max(4, int(rw * 0.03))
+    pad_y = max(3, int(rh * 0.03))
+    box_w = tw + 2 * pad_x
+    box_h = th + baseline + 2 * pad_y
+    inset = max(2, min(8, int(min(rw, rh) * 0.07)))
+
+    gap = max(2, min(10, int(min(rw, rh) * 0.08)))
+    if text_position == "top-left":
+        bx1 = x1 + inset
+        by1 = y1 - box_h - gap
+    elif text_position == "top-right":
+        bx1 = x2 - inset - box_w + 1
+        by1 = y1 - box_h - gap
+    elif text_position == "bottom-left":
+        bx1 = x1 + inset
+        by1 = y2 + gap
+    else:  # bottom-right
+        bx1 = x2 - inset - box_w + 1
+        by1 = y2 + gap
+
+    # Keep the label outside if possible, but flip when image bounds would clip it.
+    if by1 < 0 and text_position.startswith("top"):
+        by1 = y2 + gap
+    if by1 + box_h > img.shape[0] and text_position.startswith("bottom"):
+        by1 = y1 - box_h - gap
+
+    # Clamp the label box inside the image.
+    img_h, img_w = img.shape[:2]
+    bx1 = max(0, min(bx1, img_w - box_w))
+    by1 = max(0, min(by1, img_h - box_h))
+    bx2 = bx1 + box_w - 1
+    by2 = by1 + box_h - 1
+
+    overlay = img.copy()
+    cv2.rectangle(overlay, (bx1, by1), (bx2, by2), (24, 24, 24), -1)
+    cv2.addWeighted(overlay, 0.72, img, 0.28, 0, dst=img)
+    cv2.rectangle(img, (bx1, by1), (bx2, by2), (230, 230, 230), 1, cv2.LINE_AA)
+
+    tx = bx1 + pad_x
+    ty = by1 + pad_y + th
+    cv2.putText(img, label, (tx, ty), cv2.FONT_HERSHEY_SIMPLEX, scale, text_color, 1, cv2.LINE_AA)
+
+
 def style_solid(img: np.ndarray, rect: Rect) -> None:
     cv2.rectangle(img, rect[:2], rect[2:], (25, 220, 25), 2, cv2.LINE_AA)
 
@@ -801,6 +889,175 @@ def style_pro_soft_fill(img: np.ndarray, rect: Rect) -> None:
     cv2.rectangle(img, rect[:2], rect[2:], (210, 210, 210), 2, cv2.LINE_AA)
 
 
+def _style_cyberpro_box(
+    img: np.ndarray,
+    rect: Rect,
+    frame: tuple[int, int, int],
+    accent: tuple[int, int, int],
+    glow: tuple[int, int, int],
+    variant: int,
+) -> None:
+    x1, y1, x2, y2 = rect
+    w = max(1, x2 - x1)
+    h = max(1, y2 - y1)
+    l = max(10, min(w, h) // 5)
+
+    blend_fill(img, rect, glow, 0.07)
+    cv2.rectangle(img, (x1, y1), (x2, y2), frame, 2, cv2.LINE_AA)
+    cv2.rectangle(img, (x1 + 4, y1 + 4), (x2 - 4, y2 - 4), accent, 1, cv2.LINE_AA)
+
+    # Corner braces.
+    cv2.line(img, (x1, y1), (x1 + l, y1), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x1, y1), (x1, y1 + l), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y1), (x2 - l, y1), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y1), (x2, y1 + l), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x1, y2), (x1 + l, y2), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x1, y2), (x1, y2 - l), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y2), (x2 - l, y2), accent, 2, cv2.LINE_AA)
+    cv2.line(img, (x2, y2), (x2, y2 - l), accent, 2, cv2.LINE_AA)
+
+    if variant % 5 == 0:
+        for x in range(x1 + 12, x2 - 8, 16):
+            cv2.line(img, (x, y1 + 1), (x + 6, y1 + 1), accent, 1, cv2.LINE_AA)
+            cv2.line(img, (x, y2 - 1), (x + 6, y2 - 1), accent, 1, cv2.LINE_AA)
+    elif variant % 5 == 1:
+        for y in range(y1 + 12, y2 - 8, 14):
+            cv2.line(img, (x1 + 1, y), (x1 + 1, y + 5), accent, 1, cv2.LINE_AA)
+            cv2.line(img, (x2 - 1, y), (x2 - 1, y + 5), accent, 1, cv2.LINE_AA)
+    elif variant % 5 == 2:
+        for x in range(x1 + 10, x2 - 10, 18):
+            cv2.line(img, (x, y1 + 7), (x + 6, y1 + 13), accent, 1, cv2.LINE_AA)
+            cv2.line(img, (x, y2 - 7), (x + 6, y2 - 13), accent, 1, cv2.LINE_AA)
+    elif variant % 5 == 3:
+        cx = (x1 + x2) // 2
+        cy = (y1 + y2) // 2
+        cv2.line(img, (cx - 10, y1 + 2), (cx + 10, y1 + 2), accent, 1, cv2.LINE_AA)
+        cv2.line(img, (cx - 10, y2 - 2), (cx + 10, y2 - 2), accent, 1, cv2.LINE_AA)
+        cv2.line(img, (x1 + 2, cy - 10), (x1 + 2, cy + 10), accent, 1, cv2.LINE_AA)
+        cv2.line(img, (x2 - 2, cy - 10), (x2 - 2, cy + 10), accent, 1, cv2.LINE_AA)
+    else:
+        cv2.rectangle(img, (x1 + 10, y1 + 10), (x2 - 10, y2 - 10), glow, 1, cv2.LINE_AA)
+
+
+def _style_cyberpro_circle(
+    img: np.ndarray,
+    rect: Rect,
+    frame: tuple[int, int, int],
+    accent: tuple[int, int, int],
+    glow: tuple[int, int, int],
+    variant: int,
+) -> None:
+    x1, y1, x2, y2 = rect
+    cx = (x1 + x2) // 2
+    cy = (y1 + y2) // 2
+    r = max(8, min((x2 - x1), (y2 - y1)) // 2 - 4)
+
+    blend_fill(img, rect, glow, 0.05)
+    cv2.rectangle(img, (x1, y1), (x2, y2), frame, 1, cv2.LINE_AA)
+    cv2.circle(img, (cx, cy), r, frame, 2, cv2.LINE_AA)
+    cv2.circle(img, (cx, cy), max(2, r - 10), accent, 1, cv2.LINE_AA)
+
+    # HUD-like arcs.
+    cv2.ellipse(img, (cx, cy), (r, r), 0, 18, 72, accent, 2, cv2.LINE_AA)
+    cv2.ellipse(img, (cx, cy), (r, r), 0, 198, 252, accent, 2, cv2.LINE_AA)
+
+    if variant % 5 == 0:
+        cv2.line(img, (cx - r, cy), (cx + r, cy), glow, 1, cv2.LINE_AA)
+    elif variant % 5 == 1:
+        cv2.line(img, (cx, cy - r), (cx, cy + r), glow, 1, cv2.LINE_AA)
+    elif variant % 5 == 2:
+        for a in [45, 135, 225, 315]:
+            rad = math.radians(a)
+            px = int(cx + math.cos(rad) * r)
+            py = int(cy + math.sin(rad) * r)
+            cv2.circle(img, (px, py), 2, accent, -1, cv2.LINE_AA)
+    elif variant % 5 == 3:
+        cv2.ellipse(img, (cx, cy), (max(4, r - 18), max(4, r - 18)), 0, 110, 160, glow, 1, cv2.LINE_AA)
+        cv2.ellipse(img, (cx, cy), (max(4, r - 18), max(4, r - 18)), 0, 290, 340, glow, 1, cv2.LINE_AA)
+    else:
+        cv2.circle(img, (cx, cy), 3, accent, -1, cv2.LINE_AA)
+
+
+def style_cyberpro_box_1(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (255, 255, 0), (255, 180, 0), (80, 40, 0), 1)
+
+
+def style_cyberpro_box_2(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (255, 200, 80), (255, 255, 180), (80, 60, 20), 2)
+
+
+def style_cyberpro_box_3(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (255, 160, 80), (255, 240, 120), (70, 50, 20), 3)
+
+
+def style_cyberpro_box_4(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (180, 255, 120), (240, 255, 200), (40, 70, 35), 4)
+
+
+def style_cyberpro_box_5(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (120, 255, 255), (200, 255, 255), (35, 70, 70), 5)
+
+
+def style_cyberpro_box_6(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (255, 255, 255), (255, 220, 200), (55, 40, 30), 6)
+
+
+def style_cyberpro_box_7(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (170, 230, 255), (255, 255, 255), (50, 60, 80), 7)
+
+
+def style_cyberpro_box_8(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (255, 140, 120), (255, 210, 180), (65, 45, 35), 8)
+
+
+def style_cyberpro_box_9(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (220, 220, 220), (255, 255, 255), (65, 65, 65), 9)
+
+
+def style_cyberpro_box_10(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_box(img, rect, (120, 255, 170), (220, 255, 240), (35, 70, 50), 10)
+
+
+def style_cyberpro_circle_1(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (255, 255, 0), (255, 200, 40), (90, 40, 0), 1)
+
+
+def style_cyberpro_circle_2(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (255, 220, 120), (255, 255, 220), (85, 65, 30), 2)
+
+
+def style_cyberpro_circle_3(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (200, 255, 150), (255, 255, 210), (40, 80, 40), 3)
+
+
+def style_cyberpro_circle_4(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (150, 255, 255), (230, 255, 255), (40, 70, 70), 4)
+
+
+def style_cyberpro_circle_5(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (180, 230, 255), (255, 255, 255), (55, 70, 90), 5)
+
+
+def style_cyberpro_circle_6(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (255, 170, 120), (255, 220, 180), (70, 45, 35), 6)
+
+
+def style_cyberpro_circle_7(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (255, 255, 255), (220, 220, 220), (70, 70, 70), 7)
+
+
+def style_cyberpro_circle_8(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (140, 255, 180), (225, 255, 245), (35, 70, 55), 8)
+
+
+def style_cyberpro_circle_9(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (255, 245, 150), (255, 255, 230), (85, 75, 35), 9)
+
+
+def style_cyberpro_circle_10(img: np.ndarray, rect: Rect) -> None:
+    _style_cyberpro_circle(img, rect, (210, 240, 255), (255, 255, 255), (60, 70, 90), 10)
+
+
 STYLES: list[tuple[str, Callable[[np.ndarray, Rect], None]]] = [
     ("solid", style_solid),
     ("thick", style_thick),
@@ -878,6 +1135,26 @@ STYLES: list[tuple[str, Callable[[np.ndarray, Rect], None]]] = [
     ("pro-dashed-gray", style_pro_dashed_gray),
     ("pro-doubleline", style_pro_doubleline),
     ("pro-soft-fill", style_pro_soft_fill),
+    ("cyberpro-box-1", style_cyberpro_box_1),
+    ("cyberpro-box-2", style_cyberpro_box_2),
+    ("cyberpro-box-3", style_cyberpro_box_3),
+    ("cyberpro-box-4", style_cyberpro_box_4),
+    ("cyberpro-box-5", style_cyberpro_box_5),
+    ("cyberpro-box-6", style_cyberpro_box_6),
+    ("cyberpro-box-7", style_cyberpro_box_7),
+    ("cyberpro-box-8", style_cyberpro_box_8),
+    ("cyberpro-box-9", style_cyberpro_box_9),
+    ("cyberpro-box-10", style_cyberpro_box_10),
+    ("cyberpro-circle-1", style_cyberpro_circle_1),
+    ("cyberpro-circle-2", style_cyberpro_circle_2),
+    ("cyberpro-circle-3", style_cyberpro_circle_3),
+    ("cyberpro-circle-4", style_cyberpro_circle_4),
+    ("cyberpro-circle-5", style_cyberpro_circle_5),
+    ("cyberpro-circle-6", style_cyberpro_circle_6),
+    ("cyberpro-circle-7", style_cyberpro_circle_7),
+    ("cyberpro-circle-8", style_cyberpro_circle_8),
+    ("cyberpro-circle-9", style_cyberpro_circle_9),
+    ("cyberpro-circle-10", style_cyberpro_circle_10),
 ]
 
 STYLE_MAP: dict[str, Callable[[np.ndarray, Rect], None]] = {name: fn for name, fn in STYLES}
@@ -889,6 +1166,9 @@ def drawcv(
     coords: Rect,
     color: tuple[int, int, int] | None = None,
     line_width: int = 0,
+    text: str | None = None,
+    text_position: str = "top-left",
+    text_color: tuple[int, int, int] = (255, 255, 255),
 ) -> np.ndarray:
     """
     Draw a fancy rectangle style on an image and optionally overlay a custom color/line width border.
@@ -899,7 +1179,13 @@ def drawcv(
         coords: Rectangle coordinates (x1, y1, x2, y2).
         color: Optional BGR border color for an extra overlay border.
         line_width: Extra overlay border thickness. Use 0 to disable.
+        text: Optional label text to draw in a corner text box.
+        text_position: Label corner: top-left, top-right, bottom-left, bottom-right.
+        text_color: BGR text color for the label.
     """
+    # text = "Person 0.9"
+    # text_position = "top-left"
+
     if image is None:
         raise ValueError("image must be a valid numpy array.")
     if len(coords) != 4:
@@ -925,6 +1211,7 @@ def drawcv(
     style_fn(image, rect)
     if color is not None and int(line_width) > 0:
         cv2.rectangle(image, (x1, y1), (x2, y2), color, int(line_width), cv2.LINE_AA)
+    _draw_label_box(image, rect, text, text_position, text_color)
     return image
 
 
