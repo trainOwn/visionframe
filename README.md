@@ -37,16 +37,6 @@ pip install -e .[dev]
 python -m build
 ```
 
-Artifacts are written to `dist/`.
-
-## Publish
-
-TestPyPI:
-
-```bash
-twine upload --repository testpypi dist/*
-```
-
 PyPI:
 
 ```bash
@@ -54,3 +44,4 @@ twine upload dist/*
 ```
 
 Set your credentials using either a `~/.pypirc` file or `TWINE_USERNAME`/`TWINE_PASSWORD`.
+
