@@ -4,7 +4,7 @@ from drawcv import drawcv
 
 
 def main() -> None:
-    image_path = "test.png"
+    image_path = "../resource/test.png"
     output_path = "test_visionframe_output.png"
 
     image = cv2.imread(image_path)
@@ -39,17 +39,8 @@ def main() -> None:
             image=image,
             style_id=style_name,
             coords=(x1, y1, x2, y2),
-        )
-
-        cv2.putText(
-            image,
-            f"{style_name} | conf {det['confidence']:.2f}",
-            (x1, max(0, y1 - 8)),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            0.45,
-            (255, 255, 255),
-            1,
-            cv2.LINE_AA,
+            text=f"Person {det['confidence']:.2f}",
+            text_position="top-left",
         )
 
     cv2.imwrite(output_path, image)
@@ -62,4 +53,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
