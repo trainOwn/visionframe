@@ -1,0 +1,47 @@
+﻿[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "visionframe"
+version = "0.1.0"
+description = "Stylized OpenCV rectangle and frame drawing helpers for detection overlays."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+  { name = "Kaushal" }
+]
+keywords = ["opencv", "vision", "computer-vision", "bounding-box", "annotation"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Image Processing"
+]
+dependencies = [
+  "numpy>=1.24",
+  "opencv-python>=4.8"
+]
+
+[project.optional-dependencies]
+dev = [
+  "build>=1.2",
+  "twine>=5.1",
+  "pytest>=8.0"
+]
+
+[project.urls]
+Homepage = "https://pypi.org/project/visionframe/"
+Repository = "https://github.com/yourname/visionframe"
+Issues = "https://github.com/yourname/visionframe/issues"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
