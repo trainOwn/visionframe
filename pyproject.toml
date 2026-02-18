@@ -1,10 +1,10 @@
-﻿[build-system]
+[build-system]
 requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "visionframe"
-version = "0.1.0"
+name = "drawcv"
+version = "0.1.2"
 description = "Stylized OpenCV rectangle and frame drawing helpers for detection overlays."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,12 +36,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://pypi.org/project/visionframe/"
-Repository = "https://github.com/yourname/visionframe"
-Issues = "https://github.com/yourname/visionframe/issues"
+Homepage = "https://pypi.org/project/drawcv/"
+Repository = "https://github.com/trainOwn/drawcv"
+Issues = "https://github.com/trainOwn/drawcv/issues"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+

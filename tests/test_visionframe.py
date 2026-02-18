@@ -1,6 +1,6 @@
-import cv2
+﻿import cv2
 
-from visionframe import draw_visionframe_rectangle
+from drawcv import drawcv
 
 
 def main() -> None:
@@ -35,7 +35,7 @@ def main() -> None:
         x1, y1, x2, y2 = map(int, det["bbox"])
         style_name = styles[i % len(styles)]
 
-        draw_visionframe_rectangle(
+        drawcv(
             image=image,
             style_id=style_name,
             coords=(x1, y1, x2, y2),
@@ -62,3 +62,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
